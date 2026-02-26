@@ -1,3 +1,4 @@
+from pydantic import BaseModel
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -6,7 +7,7 @@ import joblib
 import numpy as np
 import os
 
-from app.optimizer import optimize
+from app.optimizer import genetic_optimize
 
 app = FastAPI()
 
@@ -41,8 +42,6 @@ async def predict(data: dict):
     return {"prediction": float(prediction[0])}
 
 
-from pydantic import BaseModel
-
 class Bounds(BaseModel):
     x1_min: float
     x1_max: float
@@ -67,7 +66,7 @@ def run_optimization(bounds: Bounds):
         (bounds.x5_min, bounds.x5_max),
     ]
 
-    params, value = optimize(search_bounds)
+    params, value = genetic_optimize(search_bounds)
 
     return {
         "best_parameters": params.tolist(),
