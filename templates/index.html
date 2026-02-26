@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Engineering Optimization</title>
+</head>
+<body>
+
+<h1>Prediction</h1>
+
+<input id="x1" placeholder="x1">
+<input id="x2" placeholder="x2">
+<input id="x3" placeholder="x3">
+<input id="x4" placeholder="x4">
+<input id="x5" placeholder="x5">
+
+<button onclick="predict()">Predict</button>
+
+<p id="result"></p>
+
+<hr>
+
+<h2>Engineering Optimization</h2>
+
+<h4>Parameter Bounds</h4>
+
+<div>
+x1: <input id="x1_min" placeholder="min"> 
+     <input id="x1_max" placeholder="max"><br>
+
+x2: <input id="x2_min" placeholder="min"> 
+     <input id="x2_max" placeholder="max"><br>
+
+x3: <input id="x3_min" placeholder="min"> 
+     <input id="x3_max" placeholder="max"><br>
+
+x4: <input id="x4_min" placeholder="min"> 
+     <input id="x4_max" placeholder="max"><br>
+
+x5: <input id="x5_min" placeholder="min"> 
+     <input id="x5_max" placeholder="max"><br>
+</div>
+
+<button onclick="runOptimization()">Run Optimization</button>
+
+<p id="opt_result"></p>
+
+<script>
+async function runOptimization() {
+
+    const response = await fetch('/optimize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            x1_min: parseFloat(document.getElementById("x1_min").value),
+            x1_max: parseFloat(document.getElementById("x1_max").value),
+            x2_min: parseFloat(document.getElementById("x2_min").value),
+            x2_max: parseFloat(document.getElementById("x2_max").value),
+            x3_min: parseFloat(document.getElementById("x3_min").value),
+            x3_max: parseFloat(document.getElementById("x3_max").value),
+            x4_min: parseFloat(document.getElementById("x4_min").value),
+            x4_max: parseFloat(document.getElementById("x4_max").value),
+            x5_min: parseFloat(document.getElementById("x5_min").value),
+            x5_max: parseFloat(document.getElementById("x5_max").value)
+        })
+    });
+
+    const data = await response.json();
+
+    document.getElementById("opt_result").innerHTML =
+        "<b>Best Parameters:</b> " + data.best_parameters +
+        "<br><b>Max Prediction:</b> " + data.max_prediction;
+}
+</script>
+
+<script>
+async function predict() {
+
+    const response = await fetch('/predict', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            x1: parseFloat(document.getElementById("x1").value),
+            x2: parseFloat(document.getElementById("x2").value),
+            x3: parseFloat(document.getElementById("x3").value),
+            x4: parseFloat(document.getElementById("x4").value),
+            x5: parseFloat(document.getElementById("x5").value)
+        })
+    });
+
+    const data = await response.json();
+    document.getElementById("result").innerText =
+        "Prediction: " + data.prediction;
+}
+
+async function runOptimization() {
+
+    const response = await fetch('/optimize');
+    const data = await response.json();
+
+    document.getElementById("opt_result").innerHTML =
+        "Best Parameters: " + data.best_parameters +
+        "<br>Max Prediction: " + data.max_prediction;
+}
+</script>
+
+</body>
+</html>
