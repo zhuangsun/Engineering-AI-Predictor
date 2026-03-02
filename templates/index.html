@@ -1,107 +1,142 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-    <title>AI Engineering Optimization</title>
+    <title>Engineering AI Optimization Platform</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial;
+            margin: 40px;
+            background-color: #f4f6f9;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        h2 {
+            margin-top: 0;
+        }
+
+        input {
+            width: 80px;
+            margin: 3px;
+        }
+
+        button {
+            padding: 8px 15px;
+            background: #0078D7;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+
+        button:hover {
+            background: #005fa3;
+        }
+    </style>
 </head>
+
 <body>
 
-<h1>Prediction</h1>
+    <h1>AI-Driven Engineering Optimization</h1>
 
-<input id="x1" placeholder="x1">
-<input id="x2" placeholder="x2">
-<input id="x3" placeholder="x3">
-<input id="x4" placeholder="x4">
-<input id="x5" placeholder="x5">
+    <div class="card">
+        <h2>Design Variable Bounds</h2>
 
-<button onclick="predict()">Predict</button>
+        <div>
+            x1: <input id="x1_min" placeholder="min">
+            <input id="x1_max" placeholder="max"><br>
 
-<p id="result"></p>
+            x2: <input id="x2_min" placeholder="min">
+            <input id="x2_max" placeholder="max"><br>
 
-<hr>
+            x3: <input id="x3_min" placeholder="min">
+            <input id="x3_max" placeholder="max"><br>
 
-<h2>Engineering Optimization</h2>
+            x4: <input id="x4_min" placeholder="min">
+            <input id="x4_max" placeholder="max"><br>
 
-<h4>Parameter Bounds</h4>
+            x5: <input id="x5_min" placeholder="min">
+            <input id="x5_max" placeholder="max"><br>
+        </div>
 
-<div>
-x1: <input id="x1_min" placeholder="min"> 
-     <input id="x1_max" placeholder="max"><br>
+        <br>
+        <button onclick="runMulti()">Run Multi-Objective Optimization</button>
 
-x2: <input id="x2_min" placeholder="min"> 
-     <input id="x2_max" placeholder="max"><br>
+        <p id="status"></p>
+    </div>
 
-x3: <input id="x3_min" placeholder="min"> 
-     <input id="x3_max" placeholder="max"><br>
+    <div class="card">
+        <h2>Pareto Front</h2>
+        <canvas id="paretoChart"></canvas>
+    </div>
 
-x4: <input id="x4_min" placeholder="min"> 
-     <input id="x4_max" placeholder="max"><br>
+    <script>
 
-x5: <input id="x5_min" placeholder="min"> 
-     <input id="x5_max" placeholder="max"><br>
-</div>
+        let chart = null;
 
-<button onclick="runOptimization()">Run Optimization</button>
+        async function runMulti() {
 
-<p id="opt_result"></p>
+            document.getElementById("status").innerText = "Running optimization...";
 
-<script>
-async function runOptimization() {
+            const response = await fetch('/optimize_multi', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    x1_min: parseFloat(document.getElementById("x1_min").value),
+                    x1_max: parseFloat(document.getElementById("x1_max").value),
+                    x2_min: parseFloat(document.getElementById("x2_min").value),
+                    x2_max: parseFloat(document.getElementById("x2_max").value),
+                    x3_min: parseFloat(document.getElementById("x3_min").value),
+                    x3_max: parseFloat(document.getElementById("x3_max").value),
+                    x4_min: parseFloat(document.getElementById("x4_min").value),
+                    x4_max: parseFloat(document.getElementById("x4_max").value),
+                    x5_min: parseFloat(document.getElementById("x5_min").value),
+                    x5_max: parseFloat(document.getElementById("x5_max").value)
+                })
+            });
 
-    const response = await fetch('/optimize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            x1_min: parseFloat(document.getElementById("x1_min").value),
-            x1_max: parseFloat(document.getElementById("x1_max").value),
-            x2_min: parseFloat(document.getElementById("x2_min").value),
-            x2_max: parseFloat(document.getElementById("x2_max").value),
-            x3_min: parseFloat(document.getElementById("x3_min").value),
-            x3_max: parseFloat(document.getElementById("x3_max").value),
-            x4_min: parseFloat(document.getElementById("x4_min").value),
-            x4_max: parseFloat(document.getElementById("x4_max").value),
-            x5_min: parseFloat(document.getElementById("x5_min").value),
-            x5_max: parseFloat(document.getElementById("x5_max").value)
-        })
-    });
+            const data = await response.json();
 
-    const data = await response.json();
+            document.getElementById("status").innerText = "Optimization complete";
 
-    document.getElementById("opt_result").innerHTML =
-        "<b>Best Parameters:</b> " + data.best_parameters +
-        "<br><b>Max Prediction:</b> " + data.max_prediction;
-}
-</script>
+            const ctx = document.getElementById('paretoChart').getContext('2d');
 
-<script>
-async function predict() {
+            if (chart) {
+                chart.destroy();
+            }
 
-    const response = await fetch('/predict', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            x1: parseFloat(document.getElementById("x1").value),
-            x2: parseFloat(document.getElementById("x2").value),
-            x3: parseFloat(document.getElementById("x3").value),
-            x4: parseFloat(document.getElementById("x4").value),
-            x5: parseFloat(document.getElementById("x5").value)
-        })
-    });
-
-    const data = await response.json();
-    document.getElementById("result").innerText =
-        "Prediction: " + data.prediction;
-}
-
-async function runOptimization() {
-
-    const response = await fetch('/optimize');
-    const data = await response.json();
-
-    document.getElementById("opt_result").innerHTML =
-        "Best Parameters: " + data.best_parameters +
-        "<br>Max Prediction: " + data.max_prediction;
-}
-</script>
+            chart = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: 'Pareto Candidates',
+                        data: data.objective1.map((val, i) => ({
+                            x: data.objective2[i],
+                            y: val
+                        }))
+                    }]
+                },
+                options: {
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Objective 2 (Cost)' }
+                        },
+                        y: {
+                            title: { display: true, text: 'Objective 1 (Performance)' }
+                        }
+                    }
+                }
+            });
+        }
+    </script>
 
 </body>
+
 </html>
