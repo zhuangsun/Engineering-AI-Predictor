@@ -1,7 +1,11 @@
+import os
 from fastapi import FastAPI
-from app.schemas import DesignInput
+from fastapi.responses import FileResponse
+from app.schemas import DesignInput, OptimizationBounds
 from app.services import predict_design
-from app.optimizer import run_optimization
+from app.optimizer import run_optimization, run_pareto_optimization
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 app = FastAPI(
     title="Engineering AI Optimizer",
@@ -10,9 +14,9 @@ app = FastAPI(
 )
 
 
-@app.get("/")
-def root():
-    return {"message": "Engineering AI Optimizer is running."}
+@app.get("/", include_in_schema=False)
+def serve_ui():
+    return FileResponse(os.path.join(BASE_DIR, "templates", "index.html"))
 
 
 @app.post("/predict")
@@ -23,3 +27,8 @@ def predict(data: DesignInput):
 @app.get("/optimize")
 def optimize():
     return run_optimization()
+
+
+@app.post("/optimize_multi")
+def optimize_multi(bounds: OptimizationBounds):
+    return run_pareto_optimization(bounds.model_dump())

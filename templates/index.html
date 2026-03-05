@@ -1,142 +1,393 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Engineering AI Optimization Platform</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
         body {
-            font-family: Arial;
-            margin: 40px;
-            background-color: #f4f6f9;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #0d1117;
+            color: #e6edf3;
+            min-height: 100vh;
+        }
+
+        header {
+            background: linear-gradient(135deg, #1a237e 0%, #0d47a1 100%);
+            padding: 24px 40px;
+            border-bottom: 2px solid #1565c0;
+        }
+        header h1 { font-size: 1.75rem; font-weight: 700; }
+        header p  { color: #90caf9; margin-top: 6px; font-size: 0.9rem; }
+
+        main {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 32px 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
         }
 
         .card {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            margin-bottom: 20px;
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            padding: 24px;
         }
-
-        h2 {
-            margin-top: 0;
+        .card h2 {
+            font-size: 1rem;
+            color: #58a6ff;
+            margin-bottom: 18px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #21262d;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
         }
+        .full-width { grid-column: 1 / -1; }
 
-        input {
-            width: 80px;
-            margin: 3px;
+        /* Form elements */
+        .field { margin-bottom: 14px; }
+        label {
+            display: block;
+            font-size: 0.8rem;
+            color: #8b949e;
+            margin-bottom: 5px;
+        }
+        input[type="number"] {
+            width: 100%;
+            padding: 8px 10px;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            color: #e6edf3;
+            font-size: 0.9rem;
+            transition: border-color 0.15s;
+        }
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #58a6ff;
+        }
+        .bounds-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
         }
 
         button {
-            padding: 8px 15px;
-            background: #0078D7;
-            color: white;
+            width: 100%;
+            padding: 10px;
+            background: #1f6feb;
+            color: #fff;
             border: none;
-            border-radius: 4px;
+            border-radius: 6px;
+            font-size: 0.92rem;
+            cursor: pointer;
+            margin-top: 6px;
+            transition: background 0.2s;
         }
+        button:hover    { background: #388bfd; }
+        button:disabled { background: #21262d; color: #484f58; cursor: default; }
 
-        button:hover {
-            background: #005fa3;
+        /* Result / status */
+        .result-box {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 14px;
+            margin-top: 14px;
+            font-size: 0.88rem;
+        }
+        .metric { margin: 5px 0; }
+        .metric strong { color: #3fb950; }
+
+        .status {
+            font-size: 0.82rem;
+            margin-top: 8px;
+            min-height: 1.2em;
+        }
+        .status.running { color: #d29922; }
+        .status.done    { color: #3fb950; }
+        .status.error   { color: #f85149; }
+
+        /* Pareto chart */
+        canvas { max-height: 340px; }
+
+        /* Results table */
+        .table-wrapper { overflow-x: auto; max-height: 300px; overflow-y: auto; margin-top: 14px; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        th {
+            position: sticky; top: 0;
+            text-align: left;
+            padding: 8px 10px;
+            background: #21262d;
+            color: #8b949e;
+            font-weight: 500;
+        }
+        td { padding: 7px 10px; border-top: 1px solid #21262d; }
+        tr:hover td { background: #1c2128; }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 0.72rem;
+            background: #1f6feb22;
+            color: #58a6ff;
+            border: 1px solid #1f6feb55;
+            margin-left: 8px;
+            vertical-align: middle;
         }
     </style>
 </head>
 
 <body>
 
-    <h1>AI-Driven Engineering Optimization</h1>
+<header>
+    <h1>Engineering AI Optimization Platform</h1>
+    <p>Random Forest surrogate model · structural beam design · minimize weight, maximize strength</p>
+</header>
 
+<main>
+
+    <!-- ── Predict ─────────────────────────────────────────── -->
     <div class="card">
-        <h2>Design Variable Bounds</h2>
+        <h2>Single Design Prediction</h2>
 
-        <div>
-            x1: <input id="x1_min" placeholder="min">
-            <input id="x1_max" placeholder="max"><br>
-
-            x2: <input id="x2_min" placeholder="min">
-            <input id="x2_max" placeholder="max"><br>
-
-            x3: <input id="x3_min" placeholder="min">
-            <input id="x3_max" placeholder="max"><br>
-
-            x4: <input id="x4_min" placeholder="min">
-            <input id="x4_max" placeholder="max"><br>
-
-            x5: <input id="x5_min" placeholder="min">
-            <input id="x5_max" placeholder="max"><br>
+        <div class="field">
+            <label>Thickness (mm) &nbsp;— valid range: 1 – 10</label>
+            <input type="number" id="thickness" value="5" step="0.1" min="1" max="10">
+        </div>
+        <div class="field">
+            <label>Length (mm) &nbsp;— valid range: 5 – 20</label>
+            <input type="number" id="length" value="12" step="0.1" min="5" max="20">
+        </div>
+        <div class="field">
+            <label>Width (mm) &nbsp;— valid range: 2 – 10</label>
+            <input type="number" id="width" value="6" step="0.1" min="2" max="10">
         </div>
 
-        <br>
-        <button onclick="runMulti()">Run Multi-Objective Optimization</button>
+        <button onclick="runPredict()">Predict Performance</button>
+        <p id="predictStatus" class="status"></p>
 
-        <p id="status"></p>
+        <div id="predictResult" class="result-box" style="display:none;">
+            <div class="metric">Weight: &nbsp;<strong id="predWeight">—</strong> kg</div>
+            <div class="metric">Strength: <strong id="predStrength">—</strong> MPa</div>
+        </div>
     </div>
 
+    <!-- ── Optimize ────────────────────────────────────────── -->
     <div class="card">
-        <h2>Pareto Front</h2>
+        <h2>Multi-Objective Pareto Optimization</h2>
+
+        <div class="field">
+            <label>Thickness bounds (mm)</label>
+            <div class="bounds-row">
+                <input type="number" id="t_min" value="1"  placeholder="min" step="0.5">
+                <input type="number" id="t_max" value="10" placeholder="max" step="0.5">
+            </div>
+        </div>
+        <div class="field">
+            <label>Length bounds (mm)</label>
+            <div class="bounds-row">
+                <input type="number" id="l_min" value="5"  placeholder="min" step="0.5">
+                <input type="number" id="l_max" value="20" placeholder="max" step="0.5">
+            </div>
+        </div>
+        <div class="field">
+            <label>Width bounds (mm)</label>
+            <div class="bounds-row">
+                <input type="number" id="w_min" value="2"  placeholder="min" step="0.5">
+                <input type="number" id="w_max" value="10" placeholder="max" step="0.5">
+            </div>
+        </div>
+
+        <button id="optBtn" onclick="runOptimize()">Run Pareto Optimization</button>
+        <p id="optStatus" class="status"></p>
+    </div>
+
+    <!-- ── Pareto Chart ────────────────────────────────────── -->
+    <div class="card full-width">
+        <h2>Pareto Front — Weight vs. Strength Trade-off</h2>
         <canvas id="paretoChart"></canvas>
     </div>
 
-    <script>
+    <!-- ── Results Table ──────────────────────────────────── -->
+    <div class="card full-width" id="tableCard" style="display:none;">
+        <h2>
+            Pareto-Optimal Designs
+            <span id="paretoCount" class="badge"></span>
+        </h2>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Thickness (mm)</th>
+                        <th>Length (mm)</th>
+                        <th>Width (mm)</th>
+                        <th>Weight (kg)</th>
+                        <th>Strength (MPa)</th>
+                    </tr>
+                </thead>
+                <tbody id="paretoTable"></tbody>
+            </table>
+        </div>
+    </div>
 
-        let chart = null;
+</main>
 
-        async function runMulti() {
+<script>
+    let chart = null;
 
-            document.getElementById("status").innerText = "Running optimization...";
+    // ── Predict ──────────────────────────────────────────────
+    async function runPredict() {
+        const status = document.getElementById('predictStatus');
+        status.textContent = 'Predicting…';
+        status.className = 'status running';
 
-            const response = await fetch('/optimize_multi', {
+        const body = {
+            thickness: parseFloat(document.getElementById('thickness').value),
+            length:    parseFloat(document.getElementById('length').value),
+            width:     parseFloat(document.getElementById('width').value),
+        };
+
+        try {
+            const res = await fetch('/predict', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    x1_min: parseFloat(document.getElementById("x1_min").value),
-                    x1_max: parseFloat(document.getElementById("x1_max").value),
-                    x2_min: parseFloat(document.getElementById("x2_min").value),
-                    x2_max: parseFloat(document.getElementById("x2_max").value),
-                    x3_min: parseFloat(document.getElementById("x3_min").value),
-                    x3_max: parseFloat(document.getElementById("x3_max").value),
-                    x4_min: parseFloat(document.getElementById("x4_min").value),
-                    x4_max: parseFloat(document.getElementById("x4_max").value),
-                    x5_min: parseFloat(document.getElementById("x5_min").value),
-                    x5_max: parseFloat(document.getElementById("x5_max").value)
-                })
+                body: JSON.stringify(body),
             });
+            if (!res.ok) throw new Error(await res.text());
+            const data = await res.json();
 
-            const data = await response.json();
+            document.getElementById('predWeight').textContent   = data.weight.toFixed(4);
+            document.getElementById('predStrength').textContent = data.strength.toFixed(4);
+            document.getElementById('predictResult').style.display = 'block';
 
-            document.getElementById("status").innerText = "Optimization complete";
-
-            const ctx = document.getElementById('paretoChart').getContext('2d');
-
-            if (chart) {
-                chart.destroy();
-            }
-
-            chart = new Chart(ctx, {
-                type: 'scatter',
-                data: {
-                    datasets: [{
-                        label: 'Pareto Candidates',
-                        data: data.objective1.map((val, i) => ({
-                            x: data.objective2[i],
-                            y: val
-                        }))
-                    }]
-                },
-                options: {
-                    scales: {
-                        x: {
-                            title: { display: true, text: 'Objective 2 (Cost)' }
-                        },
-                        y: {
-                            title: { display: true, text: 'Objective 1 (Performance)' }
-                        }
-                    }
-                }
-            });
+            status.textContent = 'Prediction complete.';
+            status.className = 'status done';
+        } catch (err) {
+            status.textContent = 'Error: ' + err.message;
+            status.className = 'status error';
         }
-    </script>
+    }
+
+    // ── Optimize ─────────────────────────────────────────────
+    async function runOptimize() {
+        const btn    = document.getElementById('optBtn');
+        const status = document.getElementById('optStatus');
+
+        btn.disabled = true;
+        status.textContent = 'Sampling 2 000 designs and computing Pareto front…';
+        status.className = 'status running';
+
+        const body = {
+            thickness_min: parseFloat(document.getElementById('t_min').value),
+            thickness_max: parseFloat(document.getElementById('t_max').value),
+            length_min:    parseFloat(document.getElementById('l_min').value),
+            length_max:    parseFloat(document.getElementById('l_max').value),
+            width_min:     parseFloat(document.getElementById('w_min').value),
+            width_max:     parseFloat(document.getElementById('w_max').value),
+        };
+
+        try {
+            const res = await fetch('/optimize_multi', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            if (!res.ok) throw new Error(await res.text());
+            const data = await res.json();
+
+            renderChart(data.pareto_front);
+            renderTable(data.pareto_front);
+
+            document.getElementById('paretoCount').textContent =
+                `${data.n_pareto_points} Pareto points / ${data.n_total_samples} samples`;
+
+            status.textContent =
+                `Done — ${data.n_pareto_points} non-dominated designs found.`;
+            status.className = 'status done';
+        } catch (err) {
+            status.textContent = 'Error: ' + err.message;
+            status.className = 'status error';
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    // ── Chart ────────────────────────────────────────────────
+    function renderChart(front) {
+        const ctx = document.getElementById('paretoChart').getContext('2d');
+        if (chart) chart.destroy();
+
+        chart = new Chart(ctx, {
+            type: 'scatter',
+            data: {
+                datasets: [{
+                    label: 'Pareto-optimal designs',
+                    data: front.map(p => ({ x: p.weight, y: p.strength })),
+                    backgroundColor: 'rgba(88, 166, 255, 0.75)',
+                    borderColor: 'rgba(88, 166, 255, 0.4)',
+                    pointRadius: 5,
+                    showLine: true,
+                    borderWidth: 1.5,
+                    tension: 0.2,
+                }],
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { labels: { color: '#8b949e' } },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => {
+                                const p = front[ctx.dataIndex];
+                                return [
+                                    `Weight:    ${p.weight.toFixed(3)} kg`,
+                                    `Strength:  ${p.strength.toFixed(3)} MPa`,
+                                    `t=${p.thickness.toFixed(2)}  l=${p.length.toFixed(2)}  w=${p.width.toFixed(2)}`,
+                                ];
+                            },
+                        },
+                    },
+                },
+                scales: {
+                    x: {
+                        title: { display: true, text: 'Weight (kg)',     color: '#8b949e' },
+                        grid:  { color: '#21262d' },
+                        ticks: { color: '#8b949e' },
+                    },
+                    y: {
+                        title: { display: true, text: 'Strength (MPa)', color: '#8b949e' },
+                        grid:  { color: '#21262d' },
+                        ticks: { color: '#8b949e' },
+                    },
+                },
+            },
+        });
+    }
+
+    // ── Table ────────────────────────────────────────────────
+    function renderTable(front) {
+        document.getElementById('paretoTable').innerHTML = front.map((p, i) => `
+            <tr>
+                <td>${i + 1}</td>
+                <td>${p.thickness.toFixed(3)}</td>
+                <td>${p.length.toFixed(3)}</td>
+                <td>${p.width.toFixed(3)}</td>
+                <td>${p.weight.toFixed(3)}</td>
+                <td>${p.strength.toFixed(3)}</td>
+            </tr>
+        `).join('');
+        document.getElementById('tableCard').style.display = 'block';
+    }
+</script>
 
 </body>
-
 </html>

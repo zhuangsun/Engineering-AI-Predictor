@@ -1,58 +1,158 @@
-# Engineering AI Predictor
+# Engineering AI Optimization Platform
 
-## Overview
-
-Engineering AI Predictor is a lightweight AI-driven system that simulates an engineering parameter prediction workflow.
-
-The system demonstrates:
-
-- Synthetic engineering data generation
-- Machine learning model training
-- REST API deployment
-- Interactive web interface
+A full-stack web application that uses a **Random Forest surrogate model** to replace expensive numerical simulations in structural design optimization. Users can predict the performance of a beam design in real time and explore the **Pareto-optimal trade-off** between weight and strength through an interactive browser UI.
 
 ---
 
-## System Architecture
+## Motivation
 
-Data Generation → Model Training → Model Serialization → REST API → Streamlit UI
+In numerical simulation workflows, evaluating a single design can take minutes to hours (FEA, CFD, etc.). Surrogate-model-based optimization replaces that bottleneck with a fast ML model trained on simulation data, enabling rapid multi-objective design space exploration — the same methodology used in aerospace, civil, and mechanical engineering.
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────┐
+│  Browser  (templates/index.html)                │
+│                                                 │
+│  ┌──────────────┐   ┌──────────────────────┐   │
+│  │  Predict     │   │  Pareto Optimizer    │   │
+│  │  form        │   │  (bounds + chart)    │   │
+│  └──────┬───────┘   └──────────┬───────────┘   │
+└─────────┼──────────────────────┼───────────────┘
+          │ POST /predict        │ POST /optimize_multi
+          ▼                      ▼
+┌─────────────────────────────────────────────────┐
+│  FastAPI  (app/main.py)                         │
+│                                                 │
+│  /predict        → services.predict_design()   │
+│  /optimize_multi → optimizer.run_pareto_*()    │
+│  /optimize       → optimizer.run_optimization()│
+└───────────────┬─────────────────────────────────┘
+                │
+                ▼
+┌─────────────────────────────────────────────────┐
+│  scikit-learn RandomForestRegressor             │
+│  models/model.pkl  (trained by train.py)        │
+│                                                 │
+│  Inputs : thickness, length, width  (mm)        │
+│  Outputs: weight (kg), strength (MPa)           │
+└─────────────────────────────────────────────────┘
+```
+
+### Key modules
+
+| File | Role |
+|---|---|
+| `train.py` | Generates synthetic dataset, trains & serialises the RF model |
+| `app/main.py` | FastAPI app — routes, CORS, static HTML serving |
+| `app/services.py` | Loads the model, runs single-point prediction |
+| `app/optimizer.py` | Non-dominated sorting → Pareto front; random-sample search |
+| `app/schemas.py` | Pydantic request/response models |
+| `templates/index.html` | Single-page UI: prediction form + Chart.js Pareto plot + results table |
+
+---
+
+## Features
+
+- **Instant prediction** — enter thickness, length, width and get weight & strength in < 50 ms
+- **Pareto front exploration** — sample 2 000 designs, apply non-dominated sorting, and visualise the trade-off frontier
+- **Interactive chart** — hover any Pareto point to see the full design variables
+- **Scrollable results table** — all non-dominated designs ranked by weight
+- **REST API** — documented at `/docs` (Swagger UI) and `/redoc`
+
+---
+
+## Quick Start
+
+### 1. Install dependencies
+
+```bash
+python -m venv venv
+source venv/bin/activate      # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+### 2. Train the surrogate model
+
+```bash
+python train.py
+# → models/model.pkl created
+```
+
+### 3. Start the server
+
+```bash
+uvicorn app.main:app --reload
+```
+
+Open [http://localhost:8000](http://localhost:8000) in your browser.
+
+API docs available at [http://localhost:8000/docs](http://localhost:8000/docs).
+
+---
+
+## Running Tests
+
+```bash
+pytest tests/ -v
+```
+
+---
+
+## Design Space
+
+| Variable | Symbol | Range | Unit |
+|---|---|---|---|
+| Thickness | t | 1 – 10 | mm |
+| Length | l | 5 – 20 | mm |
+| Width | w | 2 – 10 | mm |
+
+Synthetic ground-truth functions used for training:
+
+```
+weight   = t × l × w × 0.1
+strength = 1000 / (t + 0.5) + w × 5
+```
+
+These mimic the physical intuition that thinner cross-sections reduce weight but compromise strength — a classic structural trade-off.
 
 ---
 
 ## Tech Stack
 
-- Python 3.9
-- Scikit-learn
-- FastAPI
-- Streamlit
-- Uvicorn
-- Git
+| Layer | Technology |
+|---|---|
+| Backend | Python 3.10+, FastAPI, Uvicorn |
+| ML | scikit-learn (RandomForestRegressor), NumPy, joblib |
+| Frontend | Vanilla JS, Chart.js |
+| Testing | pytest, httpx |
 
 ---
 
-## How to Run
+## Project Structure
 
-### 1. Train Model
-
-python app/train.py
-
-
-### 2. Start API
-
-uvicorn app.api:app --reload
-
-
-### 3. Start UI
-
-streamlit run streamlit_app.py
-
+```
+Engineering-AI-Predictor/
+├── app/
+│   ├── main.py          # FastAPI application
+│   ├── optimizer.py     # Pareto front computation
+│   ├── schemas.py       # Pydantic models
+│   └── services.py      # Model loading & prediction
+├── templates/
+│   └── index.html       # Single-page frontend
+├── tests/
+│   ├── test_predict.py
+│   └── test_optimizer.py
+├── models/              # Serialised model (generated by train.py)
+├── train.py             # Model training script
+├── requirements.txt
+└── README.md
+```
 
 ---
 
-## Future Improvements
+## License
 
-- Real engineering dataset integration
-- Hyperparameter tuning
-- Optimization module
-- Docker deployment
-- Cloud hosting
+MIT
