@@ -70,7 +70,12 @@ In numerical simulation workflows, evaluating a single design can take minutes t
 
 ```bash
 python -m venv venv
-source venv/bin/activate      # Windows: venv\Scripts\activate
+# macOS / Linux
+source venv/bin/activate
+# Windows (Git Bash)
+source venv/Scripts/activate
+# Windows (Command Prompt)
+venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
