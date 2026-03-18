@@ -139,37 +139,41 @@ def _tournament_select(
 
 def run_optimization() -> dict:
     """Simple single-objective extrema finder (kept for backward compat)."""
-    samples = np.random.uniform(low=[1, 5, 2], high=[10, 20, 10], size=(500, 3))
+    samples = np.random.uniform(low=[0.1, 0.1, 0.1, 0.1], high=[2.0, 10.0, 10.0, 2.0], size=(500, 4))
     preds = model.predict(samples)
-    weights, strengths = preds[:, 0], preds[:, 1]
-    bw, bs = int(np.argmin(weights)), int(np.argmax(strengths))
+    costs, deflections = preds[:, 0], preds[:, 1]
+    bc, bd = int(np.argmin(costs)), int(np.argmin(deflections))
     return {
-        "min_weight_design": {
-            "inputs": {"thickness": float(samples[bw, 0]), "length": float(samples[bw, 1]), "width": float(samples[bw, 2])},
-            "weight": float(weights[bw]), "strength": float(strengths[bw]),
+        "min_cost_design": {
+            "inputs": {"h": float(samples[bc, 0]), "l": float(samples[bc, 1]),
+                       "t": float(samples[bc, 2]), "b": float(samples[bc, 3])},
+            "cost": float(costs[bc]), "deflection": float(deflections[bc]),
         },
-        "max_strength_design": {
-            "inputs": {"thickness": float(samples[bs, 0]), "length": float(samples[bs, 1]), "width": float(samples[bs, 2])},
-            "weight": float(weights[bs]), "strength": float(strengths[bs]),
+        "min_deflection_design": {
+            "inputs": {"h": float(samples[bd, 0]), "l": float(samples[bd, 1]),
+                       "t": float(samples[bd, 2]), "b": float(samples[bd, 3])},
+            "cost": float(costs[bd]), "deflection": float(deflections[bd]),
         },
     }
 
 
 def run_pareto_optimization(bounds: dict, n_samples: int = 2000) -> dict:
     """Random-sampling Pareto filter over the surrogate model."""
-    low  = [bounds["thickness_min"], bounds["length_min"], bounds["width_min"]]
-    high = [bounds["thickness_max"], bounds["length_max"], bounds["width_max"]]
-    samples = np.random.uniform(low=low, high=high, size=(n_samples, 3))
+    low  = [bounds["h_min"], bounds["l_min"], bounds["t_min"], bounds["b_min"]]
+    high = [bounds["h_max"], bounds["l_max"], bounds["t_max"], bounds["b_max"]]
+    samples = np.random.uniform(low=low, high=high, size=(n_samples, 4))
     preds = model.predict(samples)
-    weights, strengths = preds[:, 0], preds[:, 1]
-    costs = np.column_stack([weights, -strengths])
-    mask = _pareto_mask(costs)
-    order = np.argsort(weights[mask])
-    ps, pw, pstr = samples[mask][order], weights[mask][order], strengths[mask][order]
+    costs_arr, deflections = preds[:, 0], preds[:, 1]
+    obj = np.column_stack([costs_arr, deflections])  # both minimised
+    mask = _pareto_mask(obj)
+    order = np.argsort(costs_arr[mask])
+    ps = samples[mask][order]
+    pc, pd = costs_arr[mask][order], deflections[mask][order]
     return {
         "pareto_front": [
-            {"thickness": float(ps[i, 0]), "length": float(ps[i, 1]), "width": float(ps[i, 2]),
-             "weight": float(pw[i]), "strength": float(pstr[i])}
+            {"h": float(ps[i, 0]), "l": float(ps[i, 1]),
+             "t": float(ps[i, 2]), "b": float(ps[i, 3]),
+             "cost": float(pc[i]), "deflection": float(pd[i])}
             for i in range(len(order))
         ],
         "n_total_samples": n_samples,
@@ -188,19 +192,20 @@ def run_ga_optimization(bounds: dict, pop_size: int = 100, n_generations: int = 
     - Binary tournament selection on (Pareto rank, crowding distance)
     """
     var_bounds = np.array([
-        [bounds["thickness_min"], bounds["thickness_max"]],
-        [bounds["length_min"],    bounds["length_max"]],
-        [bounds["width_min"],     bounds["width_max"]],
+        [bounds["h_min"], bounds["h_max"]],
+        [bounds["l_min"], bounds["l_max"]],
+        [bounds["t_min"], bounds["t_max"]],
+        [bounds["b_min"], bounds["b_max"]],
     ])
 
     def _eval(X: np.ndarray) -> np.ndarray:
         preds = model.predict(X)
-        return np.column_stack([preds[:, 0], -preds[:, 1]])  # [weight, -strength]
+        return np.column_stack([preds[:, 0], preds[:, 1]])  # [cost, deflection] both minimised
 
     # Initialise
     pop = np.column_stack([
         np.random.uniform(var_bounds[k, 0], var_bounds[k, 1], pop_size)
-        for k in range(3)
+        for k in range(4)
     ])
     costs = _eval(pop)
 
@@ -250,42 +255,46 @@ def run_ga_optimization(bounds: dict, pop_size: int = 100, n_generations: int = 
     order = np.argsort(pc[:, 0])
     return {
         "pareto_front": [
-            {"thickness": float(pp[i, 0]), "length": float(pp[i, 1]), "width": float(pp[i, 2]),
-             "weight": float(pc[i, 0]),    "strength": float(-pc[i, 1])}
+            {"h": float(pp[i, 0]), "l": float(pp[i, 1]),
+             "t": float(pp[i, 2]), "b": float(pp[i, 3]),
+             "cost": float(pc[i, 0]), "deflection": float(pc[i, 1])}
             for i in order
         ],
-        "n_generations":  n_generations,
-        "pop_size":        pop_size,
-        "n_pareto_points": int(mask.sum()),
+        "n_generations":   n_generations,
+        "pop_size":         pop_size,
+        "n_pareto_points":  int(mask.sum()),
     }
 
 
 def run_sensitivity(
     variable: str,
-    fixed_thickness: float,
-    fixed_length: float,
-    fixed_width: float,
+    fixed_h: float,
+    fixed_l: float,
+    fixed_t: float,
+    fixed_b: float,
     sweep_min: float,
     sweep_max: float,
     n_points: int = 60,
 ) -> dict:
     """
-    Sweep one design variable while holding the other two fixed.
-    Returns arrays of weight and strength across the sweep range.
+    Sweep one design variable while holding the other three fixed.
+    Returns arrays of cost and deflection across the sweep range.
     """
     sweep = np.linspace(sweep_min, sweep_max, n_points)
-    fixed = {"thickness": fixed_thickness, "length": fixed_length, "width": fixed_width}
+    f = {"h": fixed_h, "l": fixed_l, "t": fixed_t, "b": fixed_b}
+    fh, fl, ft, fb = np.full(n_points, f["h"]), np.full(n_points, f["l"]), \
+                     np.full(n_points, f["t"]), np.full(n_points, f["b"])
 
     cols = {
-        "thickness": np.column_stack([sweep,              np.full(n_points, fixed["length"]), np.full(n_points, fixed["width"])]),
-        "length":    np.column_stack([np.full(n_points, fixed["thickness"]), sweep,              np.full(n_points, fixed["width"])]),
-        "width":     np.column_stack([np.full(n_points, fixed["thickness"]), np.full(n_points, fixed["length"]), sweep]),
+        "h": np.column_stack([sweep, fl,    ft,    fb]),
+        "l": np.column_stack([fh,    sweep, ft,    fb]),
+        "t": np.column_stack([fh,    fl,    sweep, fb]),
+        "b": np.column_stack([fh,    fl,    ft,    sweep]),
     }
-    X    = cols[variable]
-    pred = model.predict(X)
+    pred = model.predict(cols[variable])
     return {
         "variable":     variable,
         "sweep_values": sweep.tolist(),
-        "weight":       pred[:, 0].tolist(),
-        "strength":     pred[:, 1].tolist(),
+        "cost":         pred[:, 0].tolist(),
+        "deflection":   pred[:, 1].tolist(),
     }

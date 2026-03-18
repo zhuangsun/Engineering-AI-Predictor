@@ -55,7 +55,7 @@ def predict(data: DesignInput):
 def feature_importance():
     """Global feature importances from the Random Forest (averaged across outputs)."""
     return {
-        "features":    ["thickness", "length", "width"],
+        "features":    ["h (weld size)", "l (weld length)", "t (bar thickness)", "b (bar height)"],
         "importances": model.feature_importances_.tolist(),
     }
 
@@ -79,12 +79,13 @@ def optimize_ga(req: GAOptimizationRequest):
 
 @app.post("/sensitivity")
 def sensitivity(req: SensitivityRequest):
-    """Single-variable sweep: weight and strength as a function of one design variable."""
+    """Single-variable sweep: cost and deflection as a function of one design variable."""
     return run_sensitivity(
         variable=req.variable,
-        fixed_thickness=req.fixed_thickness,
-        fixed_length=req.fixed_length,
-        fixed_width=req.fixed_width,
+        fixed_h=req.fixed_h,
+        fixed_l=req.fixed_l,
+        fixed_t=req.fixed_t,
+        fixed_b=req.fixed_b,
         sweep_min=req.sweep_min,
         sweep_max=req.sweep_max,
         n_points=req.n_points,

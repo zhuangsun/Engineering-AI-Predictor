@@ -3,18 +3,21 @@ from pydantic import BaseModel, model_validator
 
 
 class DesignInput(BaseModel):
-    thickness: float
-    length: float
-    width: float
+    h: float  # weld size       [0.1, 2.0]  in
+    l: float  # weld length     [0.1, 10.0] in
+    t: float  # bar thickness   [0.1, 10.0] in
+    b: float  # bar height      [0.1, 2.0]  in
 
 
 class OptimizationBounds(BaseModel):
-    thickness_min: float
-    thickness_max: float
-    length_min: float
-    length_max: float
-    width_min: float
-    width_max: float
+    h_min: float
+    h_max: float
+    l_min: float
+    l_max: float
+    t_min: float
+    t_max: float
+    b_min: float
+    b_max: float
 
 
 class GAOptimizationRequest(OptimizationBounds):
@@ -23,10 +26,11 @@ class GAOptimizationRequest(OptimizationBounds):
 
 
 class SensitivityRequest(BaseModel):
-    variable: Literal["thickness", "length", "width"]
-    fixed_thickness: float = 5.0
-    fixed_length: float = 12.0
-    fixed_width: float = 6.0
+    variable: Literal["h", "l", "t", "b"]
+    fixed_h: float = 0.5
+    fixed_l: float = 5.0
+    fixed_t: float = 5.0
+    fixed_b: float = 0.5
     sweep_min: float
     sweep_max: float
     n_points: int = 60

@@ -1,6 +1,6 @@
 # Engineering AI Optimization Platform
 
-A full-stack web application that uses a **Random Forest surrogate model** to replace expensive numerical simulations in structural design optimization. Users can predict performance in real time, explore the **Pareto-optimal trade-off** between weight and strength via two optimization algorithms, run single-variable sensitivity sweeps, and export results — all from an interactive browser UI.
+A full-stack web application that uses a **Random Forest surrogate model** on the **Welded Beam** engineering benchmark (Ragsdell & Phillips, 1976). Users can predict manufacturing cost and tip deflection in real time, explore the **Pareto-optimal trade-off** between the two objectives via two optimization algorithms, run single-variable sensitivity sweeps, and export results — all from an interactive browser UI.
 
 ---
 
@@ -36,8 +36,8 @@ In numerical simulation workflows, evaluating a single design can take minutes t
 │  scikit-learn RandomForestRegressor  (100 trees)                 │
 │  models/model.pkl  —  trained by train.py (80/20 split)         │
 │                                                                  │
-│  Inputs : thickness, length, width  (mm)                        │
-│  Outputs: weight (kg), strength (MPa)   R² > 0.98               │
+│  Inputs : h, l, t, b  (Welded Beam design variables)            │
+│  Outputs: cost ($), deflection (in)   R² = 0.99 / 0.89          │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -45,7 +45,7 @@ In numerical simulation workflows, evaluating a single design can take minutes t
 
 | File | Role |
 |---|---|
-| `train.py` | Generates synthetic dataset, 80/20 train/test split, prints R² & MAE, serialises model |
+| `train.py` | Generates Welded Beam dataset (feasibility-filtered), 80/20 split, prints R² & MAE, serialises model |
 | `app/main.py` | FastAPI app — all routes, request-logging middleware |
 | `app/services.py` | Model loading, single-point prediction with per-tree uncertainty |
 | `app/optimizer.py` | Non-dominated sorting, NSGA-II (SBX + polynomial mutation), sensitivity sweep |
@@ -58,11 +58,11 @@ In numerical simulation workflows, evaluating a single design can take minutes t
 
 | Feature | Detail |
 |---|---|
-| **Instant prediction** | Returns weight & strength with `±` uncertainty (RF inter-tree std dev) |
+| **Instant prediction** | Returns cost & deflection with `±` uncertainty (RF inter-tree std dev) |
 | **Feature importance** | Horizontal bar chart loaded on page load via `GET /feature_importance` |
 | **Random-sampling Pareto front** | 2 000 samples → non-dominated sorting → interactive scatter chart |
 | **NSGA-II optimization** | Evolutionary algorithm with SBX crossover and polynomial mutation; configurable population size and generations |
-| **Sensitivity analysis** | Sweep any one design variable while fixing the other two; dual-axis line chart |
+| **Sensitivity analysis** | Sweep any one design variable while fixing the other three; dual-axis line chart |
 | **CSV export** | Download the full Pareto front table with one click |
 | **REST API docs** | Swagger UI at `/docs`, ReDoc at `/redoc` |
 | **CI** | GitHub Actions runs the test suite on every push |
@@ -126,31 +126,54 @@ pytest tests/ -v
 | Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/` | Serves the frontend UI |
-| `POST` | `/predict` | Predict weight & strength with uncertainty |
+| `POST` | `/predict` | Predict cost & deflection with uncertainty |
 | `GET` | `/feature_importance` | RF feature importances for all inputs |
 | `POST` | `/optimize_multi` | Pareto front via random sampling |
 | `POST` | `/optimize_ga` | Pareto front via NSGA-II |
-| `POST` | `/sensitivity` | Single-variable sweep (weight & strength vs. one input) |
+| `POST` | `/sensitivity` | Single-variable sweep (cost & deflection vs. one input) |
 | `GET` | `/docs` | Swagger UI |
 
 ---
 
-## Design Space
+## Design Space — Welded Beam Benchmark
 
-| Variable | Range | Unit |
+A cantilever beam welded to a rigid wall, loaded with P = 6,000 lbf at the free end.
+
+| Variable | Description | Bounds | Unit |
+|---|---|---|---|
+| h | Weld size | 0.1 – 2.0 | in |
+| l | Weld length | 0.1 – 10.0 | in |
+| t | Bar thickness | 0.1 – 10.0 | in |
+| b | Bar height | 0.1 – 2.0 | in |
+
+**Objectives (both minimised):**
+
+```
+cost       = 1.10471 · h² · l  +  0.04811 · t · b · (14 + l)   [$]
+deflection = 2.1952 / (t³ · b)                                   [in]
+```
+
+**Feasibility constraints** (used to filter training data):
+
+```
+shear stress   τ  ≤ 13 600 psi
+bending stress σ  ≤ 30 000 psi
+deflection     δ  ≤ 0.25 in
+h              ≤  b
+```
+
+These constraints mean only ~26 % of the raw random samples are feasible, giving the surrogate a genuinely non-trivial region to learn. Cost and deflection are in fundamental conflict: a stiffer beam (lower δ) requires more material, which raises cost.
+
+**Surrogate performance** (100-tree RF, 80/20 split, ~2 600 feasible samples):
+
+| Output | R² | MAE |
 |---|---|---|
-| Thickness | 1 – 10 | mm |
-| Length | 5 – 20 | mm |
-| Width | 2 – 10 | mm |
+| Cost ($) | 0.986 | 0.69 |
+| Deflection (in) | 0.892 | 0.0012 |
 
-Synthetic ground-truth functions used for training:
+The deflection R² of 0.89 — lower than a trivial synthetic formula — reflects the genuine nonlinearity of 1/(t³·b) in the feasible region.
 
-```
-weight   = t * l * w * 0.1
-strength = 1000 / (t + 0.5) + w * 5
-```
-
-These capture the physical intuition that thinner cross-sections reduce weight but compromise strength — a classic structural trade-off.
+**Reference:** Ragsdell, K. M. & Phillips, D. T. (1976). *Optimal Design of a Class of Welded Structures Using Geometric Programming.* ASME Journal of Engineering for Industry.
 
 ---
 

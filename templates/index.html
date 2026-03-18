@@ -64,7 +64,7 @@
         .method-btn { flex: 1; padding: 7px; background: #21262d; border: 1px solid #30363d; color: #8b949e; border-radius: 6px; cursor: pointer; font-size: 0.82rem; transition: all .15s; }
         .method-btn.active { background: #1f3a6e; border-color: #58a6ff; color: #58a6ff; }
 
-        .sens-grid { display: grid; grid-template-columns: 320px 1fr; gap: 24px; }
+        .sens-grid { display: grid; grid-template-columns: 340px 1fr; gap: 24px; }
         @media (max-width: 760px) { main { grid-template-columns: 1fr; } .sens-grid { grid-template-columns: 1fr; } }
     </style>
 </head>
@@ -72,7 +72,7 @@
 
 <header>
     <h1>Engineering AI Optimization Platform</h1>
-    <p>Random Forest surrogate model · structural beam design · minimize weight, maximize strength</p>
+    <p>Random Forest surrogate · Welded Beam benchmark · minimize manufacturing cost &amp; tip deflection</p>
 </header>
 
 <main>
@@ -82,29 +82,33 @@
         <h2>Single Design Prediction</h2>
 
         <div class="field">
-            <label>Thickness (mm) — range 1–10</label>
-            <input type="number" id="thickness" value="5" step="0.1" min="1" max="10">
+            <label>h — weld size (in) &nbsp; range 0.1–2.0</label>
+            <input type="number" id="inp_h" value="0.5" step="0.05" min="0.1" max="2.0">
         </div>
         <div class="field">
-            <label>Length (mm) — range 5–20</label>
-            <input type="number" id="length" value="12" step="0.1" min="5" max="20">
+            <label>l — weld length (in) &nbsp; range 0.1–10.0</label>
+            <input type="number" id="inp_l" value="5.0" step="0.1" min="0.1" max="10.0">
         </div>
         <div class="field">
-            <label>Width (mm) — range 2–10</label>
-            <input type="number" id="width" value="6" step="0.1" min="2" max="10">
+            <label>t — bar thickness (in) &nbsp; range 0.1–10.0</label>
+            <input type="number" id="inp_t" value="5.0" step="0.1" min="0.1" max="10.0">
+        </div>
+        <div class="field">
+            <label>b — bar height (in) &nbsp; range 0.1–2.0</label>
+            <input type="number" id="inp_b" value="0.5" step="0.05" min="0.1" max="2.0">
         </div>
 
         <button onclick="runPredict()">Predict Performance</button>
         <p id="predictStatus" class="status"></p>
 
         <div id="predictResult" class="result-box" style="display:none;">
-            <div class="metric">Weight: &nbsp;&nbsp;<strong id="predWeight">—</strong> kg &nbsp;<span class="unc" id="predWeightStd"></span></div>
-            <div class="metric">Strength: <strong id="predStrength">—</strong> MPa <span class="unc" id="predStrengthStd"></span></div>
+            <div class="metric">Cost:       &nbsp;<strong id="predCost">—</strong> $ &nbsp;<span class="unc" id="predCostStd"></span></div>
+            <div class="metric">Deflection: &nbsp;<strong id="predDefl">—</strong> in <span class="unc" id="predDeflStd"></span></div>
         </div>
 
         <div style="margin-top:20px;">
             <label style="margin-bottom:10px; display:block;">Feature Importance</label>
-            <canvas id="importanceChart" style="max-height:110px;"></canvas>
+            <canvas id="importanceChart" style="max-height:130px;"></canvas>
         </div>
     </div>
 
@@ -119,24 +123,31 @@
         </div>
 
         <div class="field">
-            <label>Thickness bounds (mm)</label>
+            <label>h bounds (in)</label>
             <div class="bounds-row">
-                <input type="number" id="t_min" value="1"  placeholder="min" step="0.5">
-                <input type="number" id="t_max" value="10" placeholder="max" step="0.5">
+                <input type="number" id="h_min" value="0.1" placeholder="min" step="0.1">
+                <input type="number" id="h_max" value="2.0" placeholder="max" step="0.1">
             </div>
         </div>
         <div class="field">
-            <label>Length bounds (mm)</label>
+            <label>l bounds (in)</label>
             <div class="bounds-row">
-                <input type="number" id="l_min" value="5"  placeholder="min" step="0.5">
-                <input type="number" id="l_max" value="20" placeholder="max" step="0.5">
+                <input type="number" id="l_min" value="0.1" placeholder="min" step="0.5">
+                <input type="number" id="l_max" value="10.0" placeholder="max" step="0.5">
             </div>
         </div>
         <div class="field">
-            <label>Width bounds (mm)</label>
+            <label>t bounds (in)</label>
             <div class="bounds-row">
-                <input type="number" id="w_min" value="2"  placeholder="min" step="0.5">
-                <input type="number" id="w_max" value="10" placeholder="max" step="0.5">
+                <input type="number" id="t_min" value="0.1" placeholder="min" step="0.5">
+                <input type="number" id="t_max" value="10.0" placeholder="max" step="0.5">
+            </div>
+        </div>
+        <div class="field">
+            <label>b bounds (in)</label>
+            <div class="bounds-row">
+                <input type="number" id="b_min" value="0.1" placeholder="min" step="0.1">
+                <input type="number" id="b_max" value="2.0" placeholder="max" step="0.1">
             </div>
         </div>
 
@@ -158,7 +169,7 @@
 
     <!-- ── Pareto Chart ──────────────────────────────────────── -->
     <div class="card full-width">
-        <h2>Pareto Front — Weight vs. Strength Trade-off</h2>
+        <h2>Pareto Front — Cost vs. Deflection Trade-off</h2>
         <canvas id="paretoChart"></canvas>
     </div>
 
@@ -172,8 +183,9 @@
             <table>
                 <thead>
                     <tr>
-                        <th>#</th><th>Thickness (mm)</th><th>Length (mm)</th>
-                        <th>Width (mm)</th><th>Weight (kg)</th><th>Strength (MPa)</th>
+                        <th>#</th>
+                        <th>h (in)</th><th>l (in)</th><th>t (in)</th><th>b (in)</th>
+                        <th>Cost ($)</th><th>Deflection (in)</th>
                     </tr>
                 </thead>
                 <tbody id="paretoTable"></tbody>
@@ -192,25 +204,30 @@
                 <div class="field">
                     <label>Sweep variable</label>
                     <select id="sweepVar" onchange="onSweepVarChange()">
-                        <option value="thickness">Thickness</option>
-                        <option value="length">Length</option>
-                        <option value="width">Width</option>
+                        <option value="h">h — weld size</option>
+                        <option value="l">l — weld length</option>
+                        <option value="t">t — bar thickness</option>
+                        <option value="b">b — bar height</option>
                     </select>
                 </div>
                 <div class="field">
-                    <label>Sweep range (mm)</label>
+                    <label>Sweep range (in)</label>
                     <div class="bounds-row">
-                        <input type="number" id="sweep_min" value="1"  step="0.1" placeholder="min">
-                        <input type="number" id="sweep_max" value="10" step="0.1" placeholder="max">
+                        <input type="number" id="sweep_min" value="0.1" step="0.05" placeholder="min">
+                        <input type="number" id="sweep_max" value="2.0" step="0.05" placeholder="max">
                     </div>
                 </div>
                 <div class="field">
-                    <label id="fix1Label">Fixed: Length (mm)</label>
-                    <input type="number" id="fix1Val" value="12" step="0.1">
+                    <label id="fix1Label">Fixed: l — weld length (in)</label>
+                    <input type="number" id="fix1Val" value="5.0" step="0.1">
                 </div>
                 <div class="field">
-                    <label id="fix2Label">Fixed: Width (mm)</label>
-                    <input type="number" id="fix2Val" value="6" step="0.1">
+                    <label id="fix2Label">Fixed: t — bar thickness (in)</label>
+                    <input type="number" id="fix2Val" value="5.0" step="0.1">
+                </div>
+                <div class="field">
+                    <label id="fix3Label">Fixed: b — bar height (in)</label>
+                    <input type="number" id="fix3Val" value="0.5" step="0.05">
                 </div>
                 <button onclick="runSensitivity()">Run Sensitivity Analysis</button>
                 <p id="sensStatus" class="status"></p>
@@ -225,9 +242,9 @@
 
 <script>
 // ── State ─────────────────────────────────────────────────────────────────────
-let paretoChart = null;
-let sensChart   = null;
-let currentFront = [];
+let paretoChart    = null;
+let sensChart      = null;
+let currentFront   = [];
 let optimizeMethod = 'sampling';
 
 // ── Feature Importance (load on page load) ────────────────────────────────────
@@ -239,10 +256,13 @@ window.addEventListener('load', async () => {
         new Chart(ctx, {
             type: 'bar',
             data: {
-                labels: ['Thickness', 'Length', 'Width'],
+                labels: data.features,
                 datasets: [{
                     data: data.importances,
-                    backgroundColor: ['rgba(88,166,255,.75)', 'rgba(63,185,80,.75)', 'rgba(210,153,34,.75)'],
+                    backgroundColor: [
+                        'rgba(88,166,255,.75)', 'rgba(63,185,80,.75)',
+                        'rgba(210,153,34,.75)', 'rgba(248,81,73,.75)',
+                    ],
                     borderRadius: 4,
                 }],
             },
@@ -257,7 +277,7 @@ window.addEventListener('load', async () => {
                 },
             },
         });
-    } catch (_) { /* feature importance chart is non-critical */ }
+    } catch (_) { /* non-critical */ }
 });
 
 // ── Predict ───────────────────────────────────────────────────────────────────
@@ -265,21 +285,22 @@ async function runPredict() {
     const status = document.getElementById('predictStatus');
     setStatus(status, 'Predicting…', 'running');
     try {
-        const res  = await fetch('/predict', {
+        const res = await fetch('/predict', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                thickness: numVal('thickness'),
-                length:    numVal('length'),
-                width:     numVal('width'),
+                h: numVal('inp_h'),
+                l: numVal('inp_l'),
+                t: numVal('inp_t'),
+                b: numVal('inp_b'),
             }),
         });
         if (!res.ok) throw new Error(await res.text());
         const d = await res.json();
-        document.getElementById('predWeight').textContent      = d.weight.toFixed(4);
-        document.getElementById('predWeightStd').textContent   = `± ${d.weight_std.toFixed(4)}`;
-        document.getElementById('predStrength').textContent    = d.strength.toFixed(4);
-        document.getElementById('predStrengthStd').textContent = `± ${d.strength_std.toFixed(4)}`;
+        document.getElementById('predCost').textContent    = d.cost.toFixed(4);
+        document.getElementById('predCostStd').textContent = `± ${d.cost_std.toFixed(4)}`;
+        document.getElementById('predDefl').textContent    = d.deflection.toFixed(5);
+        document.getElementById('predDeflStd').textContent = `± ${d.deflection_std.toFixed(5)}`;
         document.getElementById('predictResult').style.display = 'block';
         setStatus(status, 'Prediction complete.', 'done');
     } catch (e) { setStatus(status, 'Error: ' + e.message, 'error'); }
@@ -300,9 +321,10 @@ async function runOptimize() {
     btn.disabled = true;
 
     const bounds = {
-        thickness_min: numVal('t_min'), thickness_max: numVal('t_max'),
-        length_min:    numVal('l_min'), length_max:    numVal('l_max'),
-        width_min:     numVal('w_min'), width_max:     numVal('w_max'),
+        h_min: numVal('h_min'), h_max: numVal('h_max'),
+        l_min: numVal('l_min'), l_max: numVal('l_max'),
+        t_min: numVal('t_min'), t_max: numVal('t_max'),
+        b_min: numVal('b_min'), b_max: numVal('b_max'),
     };
 
     let endpoint, body;
@@ -346,7 +368,7 @@ function renderParetoChart(front) {
         data: {
             datasets: [{
                 label: 'Pareto-optimal designs',
-                data: front.map(p => ({ x: p.weight, y: p.strength })),
+                data: front.map(p => ({ x: p.cost, y: p.deflection })),
                 backgroundColor: 'rgba(88,166,255,.75)',
                 borderColor: 'rgba(88,166,255,.4)',
                 pointRadius: 5, showLine: true, borderWidth: 1.5, tension: 0.2,
@@ -360,15 +382,18 @@ function renderParetoChart(front) {
                     callbacks: {
                         label: ctx => {
                             const p = front[ctx.dataIndex];
-                            return [`Weight: ${p.weight.toFixed(3)} kg`, `Strength: ${p.strength.toFixed(3)} MPa`,
-                                    `t=${p.thickness.toFixed(2)}  l=${p.length.toFixed(2)}  w=${p.width.toFixed(2)}`];
+                            return [
+                                `Cost: $${p.cost.toFixed(4)}`,
+                                `Deflection: ${p.deflection.toFixed(5)} in`,
+                                `h=${p.h.toFixed(3)}  l=${p.l.toFixed(3)}  t=${p.t.toFixed(3)}  b=${p.b.toFixed(3)}`,
+                            ];
                         },
                     },
                 },
             },
             scales: {
-                x: { title: { display:true, text:'Weight (kg)',     color:'#8b949e' }, grid:{color:'#21262d'}, ticks:{color:'#8b949e'} },
-                y: { title: { display:true, text:'Strength (MPa)', color:'#8b949e' }, grid:{color:'#21262d'}, ticks:{color:'#8b949e'} },
+                x: { title: { display:true, text:'Cost ($)',          color:'#8b949e' }, grid:{color:'#21262d'}, ticks:{color:'#8b949e'} },
+                y: { title: { display:true, text:'Deflection (in)',   color:'#8b949e' }, grid:{color:'#21262d'}, ticks:{color:'#8b949e'} },
             },
         },
     });
@@ -378,17 +403,19 @@ function renderParetoChart(front) {
 function renderTable(front) {
     document.getElementById('paretoTable').innerHTML = front.map((p, i) => `
         <tr>
-            <td>${i+1}</td><td>${p.thickness.toFixed(3)}</td><td>${p.length.toFixed(3)}</td>
-            <td>${p.width.toFixed(3)}</td><td>${p.weight.toFixed(3)}</td><td>${p.strength.toFixed(3)}</td>
+            <td>${i+1}</td>
+            <td>${p.h.toFixed(3)}</td><td>${p.l.toFixed(3)}</td>
+            <td>${p.t.toFixed(3)}</td><td>${p.b.toFixed(3)}</td>
+            <td>${p.cost.toFixed(4)}</td><td>${p.deflection.toFixed(5)}</td>
         </tr>`).join('');
     document.getElementById('tableCard').style.display = 'block';
 }
 
 // ── CSV export ────────────────────────────────────────────────────────────────
 function exportCSV() {
-    const header = 'rank,thickness_mm,length_mm,width_mm,weight_kg,strength_MPa\n';
+    const header = 'rank,h_in,l_in,t_in,b_in,cost_usd,deflection_in\n';
     const rows   = currentFront.map((p, i) =>
-        `${i+1},${p.thickness},${p.length},${p.width},${p.weight},${p.strength}`).join('\n');
+        `${i+1},${p.h},${p.l},${p.t},${p.b},${p.cost},${p.deflection}`).join('\n');
     const blob   = new Blob([header + rows], { type: 'text/csv' });
     const a      = document.createElement('a');
     a.href       = URL.createObjectURL(blob);
@@ -398,20 +425,35 @@ function exportCSV() {
 
 // ── Sensitivity ───────────────────────────────────────────────────────────────
 const SENS_CONFIG = {
-    thickness: { min:1,  max:10, fix1:'length',    fix1d:12, fix1l:'Fixed: Length (mm)',    fix2:'width',  fix2d:6,  fix2l:'Fixed: Width (mm)'  },
-    length:    { min:5,  max:20, fix1:'thickness', fix1d:5,  fix1l:'Fixed: Thickness (mm)', fix2:'width',  fix2d:6,  fix2l:'Fixed: Width (mm)'  },
-    width:     { min:2,  max:10, fix1:'thickness', fix1d:5,  fix1l:'Fixed: Thickness (mm)', fix2:'length', fix2d:12, fix2l:'Fixed: Length (mm)' },
+    h: { min:0.1, max:2.0,
+         fix1:'l', fix1d:5.0, fix1l:'Fixed: l — weld length (in)',
+         fix2:'t', fix2d:5.0, fix2l:'Fixed: t — bar thickness (in)',
+         fix3:'b', fix3d:0.5, fix3l:'Fixed: b — bar height (in)' },
+    l: { min:0.1, max:10.0,
+         fix1:'h', fix1d:0.5, fix1l:'Fixed: h — weld size (in)',
+         fix2:'t', fix2d:5.0, fix2l:'Fixed: t — bar thickness (in)',
+         fix3:'b', fix3d:0.5, fix3l:'Fixed: b — bar height (in)' },
+    t: { min:0.1, max:10.0,
+         fix1:'h', fix1d:0.5, fix1l:'Fixed: h — weld size (in)',
+         fix2:'l', fix2d:5.0, fix2l:'Fixed: l — weld length (in)',
+         fix3:'b', fix3d:0.5, fix3l:'Fixed: b — bar height (in)' },
+    b: { min:0.1, max:2.0,
+         fix1:'h', fix1d:0.5, fix1l:'Fixed: h — weld size (in)',
+         fix2:'l', fix2d:5.0, fix2l:'Fixed: l — weld length (in)',
+         fix3:'t', fix3d:5.0, fix3l:'Fixed: t — bar thickness (in)' },
 };
 
 function onSweepVarChange() {
     const v = document.getElementById('sweepVar').value;
     const c = SENS_CONFIG[v];
-    document.getElementById('sweep_min').value  = c.min;
-    document.getElementById('sweep_max').value  = c.max;
+    document.getElementById('sweep_min').value       = c.min;
+    document.getElementById('sweep_max').value       = c.max;
     document.getElementById('fix1Label').textContent = c.fix1l;
-    document.getElementById('fix1Val').value    = c.fix1d;
+    document.getElementById('fix1Val').value         = c.fix1d;
     document.getElementById('fix2Label').textContent = c.fix2l;
-    document.getElementById('fix2Val').value    = c.fix2d;
+    document.getElementById('fix2Val').value         = c.fix2d;
+    document.getElementById('fix3Label').textContent = c.fix3l;
+    document.getElementById('fix3Val').value         = c.fix3d;
 }
 
 async function runSensitivity() {
@@ -421,16 +463,17 @@ async function runSensitivity() {
     const v = document.getElementById('sweepVar').value;
     const c = SENS_CONFIG[v];
 
-    // Build fixed values: all 3 vars needed by the API
-    const allFixed = { thickness: 5, length: 12, width: 6 };
+    const allFixed = { h: 0.5, l: 5.0, t: 5.0, b: 0.5 };
     allFixed[c.fix1] = numVal('fix1Val');
     allFixed[c.fix2] = numVal('fix2Val');
+    allFixed[c.fix3] = numVal('fix3Val');
 
     const body = {
-        variable: v,
-        fixed_thickness: allFixed.thickness,
-        fixed_length:    allFixed.length,
-        fixed_width:     allFixed.width,
+        variable:  v,
+        fixed_h:   allFixed.h,
+        fixed_l:   allFixed.l,
+        fixed_t:   allFixed.t,
+        fixed_b:   allFixed.b,
         sweep_min: numVal('sweep_min'),
         sweep_max: numVal('sweep_max'),
     };
@@ -451,23 +494,23 @@ async function runSensitivity() {
 function renderSensChart(data, variable) {
     const ctx = document.getElementById('sensChart').getContext('2d');
     if (sensChart) sensChart.destroy();
-    const labels = data.sweep_values.map(v => v.toFixed(2));
+    const labels = data.sweep_values.map(v => v.toFixed(3));
     sensChart = new Chart(ctx, {
         type: 'line',
         data: {
             labels,
             datasets: [
-                { label: 'Weight (kg)',     data: data.weight,   borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,.1)',  yAxisID: 'y1', tension: 0.3, pointRadius: 0 },
-                { label: 'Strength (MPa)', data: data.strength, borderColor: '#3fb950', backgroundColor: 'rgba(63,185,80,.1)',   yAxisID: 'y2', tension: 0.3, pointRadius: 0 },
+                { label: 'Cost ($)',          data: data.cost,       borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,.1)',  yAxisID: 'y1', tension: 0.3, pointRadius: 0 },
+                { label: 'Deflection (in)',   data: data.deflection, borderColor: '#3fb950', backgroundColor: 'rgba(63,185,80,.1)',   yAxisID: 'y2', tension: 0.3, pointRadius: 0 },
             ],
         },
         options: {
             responsive: true,
             plugins: { legend: { labels: { color: '#8b949e' } } },
             scales: {
-                x:  { title: { display:true, text: variable + ' (mm)', color:'#8b949e' }, grid:{color:'#21262d'}, ticks:{color:'#8b949e', maxTicksLimit:10} },
-                y1: { position:'left',  title:{display:true, text:'Weight (kg)',    color:'#58a6ff'}, grid:{color:'#21262d'}, ticks:{color:'#58a6ff'} },
-                y2: { position:'right', title:{display:true, text:'Strength (MPa)',color:'#3fb950'}, grid:{drawOnChartArea:false}, ticks:{color:'#3fb950'} },
+                x:  { title: { display:true, text: variable + ' (in)', color:'#8b949e' }, grid:{color:'#21262d'}, ticks:{color:'#8b949e', maxTicksLimit:10} },
+                y1: { position:'left',  title:{display:true, text:'Cost ($)',         color:'#58a6ff'}, grid:{color:'#21262d'}, ticks:{color:'#58a6ff'} },
+                y2: { position:'right', title:{display:true, text:'Deflection (in)', color:'#3fb950'}, grid:{drawOnChartArea:false}, ticks:{color:'#3fb950'} },
             },
         },
     });
