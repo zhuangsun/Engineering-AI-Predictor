@@ -1,12 +1,12 @@
 from typing import Literal
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 
 class DesignInput(BaseModel):
-    h: float  # weld size       [0.1, 2.0]  in
-    l: float  # weld length     [0.1, 10.0] in
-    t: float  # bar thickness   [0.1, 10.0] in
-    b: float  # bar height      [0.1, 2.0]  in
+    h: float = Field(gt=0, le=2.0,   description="Weld size [0.1, 2.0] in")
+    l: float = Field(gt=0, le=10.0,  description="Weld length [0.1, 10.0] in")
+    t: float = Field(gt=0, le=10.0,  description="Bar thickness [0.1, 10.0] in")
+    b: float = Field(gt=0, le=2.0,   description="Bar height [0.1, 2.0] in")
 
 
 class OptimizationBounds(BaseModel):
@@ -18,6 +18,14 @@ class OptimizationBounds(BaseModel):
     t_max: float
     b_min: float
     b_max: float
+
+    @model_validator(mode="after")
+    def check_bounds_order(self) -> "OptimizationBounds":
+        for var in ("h", "l", "t", "b"):
+            lo, hi = getattr(self, f"{var}_min"), getattr(self, f"{var}_max")
+            if lo >= hi:
+                raise ValueError(f"{var}_min ({lo}) must be less than {var}_max ({hi})")
+        return self
 
 
 class GAOptimizationRequest(OptimizationBounds):

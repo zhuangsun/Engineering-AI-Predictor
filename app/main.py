@@ -1,4 +1,5 @@
 import os
+import json
 import time
 import logging
 from fastapi import FastAPI, Request
@@ -10,6 +11,7 @@ from app.optimizer import (
     run_pareto_optimization,
     run_ga_optimization,
     run_sensitivity,
+    check_feasibility,
 )
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -90,3 +92,22 @@ def sensitivity(req: SensitivityRequest):
         sweep_max=req.sweep_max,
         n_points=req.n_points,
     )
+
+
+@app.post("/check_feasibility")
+def check_feasibility_endpoint(data: DesignInput):
+    """
+    Check whether a design satisfies all Welded Beam structural constraints.
+    Returns each constraint value, its limit, and pass/fail status.
+    """
+    return check_feasibility(data.h, data.l, data.t, data.b)
+
+
+@app.get("/model_info")
+def model_info():
+    """Surrogate model metadata: training stats, R², MAE, and configuration."""
+    info_path = os.path.join(BASE_DIR, "models", "model_info.json")
+    if not os.path.exists(info_path):
+        return {"error": "model_info.json not found — run train.py to generate it"}
+    with open(info_path) as f:
+        return json.load(f)

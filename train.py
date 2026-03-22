@@ -22,7 +22,9 @@ Feasibility constraints applied before training
   h              ≤  b
 """
 import os
+import json
 import numpy as np
+from datetime import date
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score, mean_absolute_error
@@ -79,8 +81,15 @@ print(f"Feasible samples : {mask.sum()} / {N_raw}")
 cost       = _cost(h, l, t, b)
 deflection = _deflection(h, l, t, b)
 
+# ── Add 2 % multiplicative noise so RF uncertainty estimates are meaningful ───
+rng = np.random.default_rng(seed=123)
+cost_noisy       = cost       * (1.0 + 0.02 * rng.standard_normal(len(cost)))
+deflection_noisy = deflection * (1.0 + 0.02 * rng.standard_normal(len(deflection)))
+deflection_noisy = np.clip(deflection_noisy, 1e-9, None)  # guard log domain
+
+# Log-transform deflection: 2.1952/(t³·b) is linear in log-space → better R²
 X = np.column_stack([h, l, t, b])
-y = np.column_stack([cost, deflection])
+y = np.column_stack([cost_noisy, np.log(deflection_noisy)])
 
 # ── Train / test split ────────────────────────────────────────────────────────
 X_train, X_test, y_train, y_test = train_test_split(
@@ -91,16 +100,42 @@ X_train, X_test, y_train, y_test = train_test_split(
 model = RandomForestRegressor(n_estimators=100, random_state=42, n_jobs=-1)
 model.fit(X_train, y_train)
 
-# ── Evaluation ────────────────────────────────────────────────────────────────
-y_pred = model.predict(X_test)
-r2  = r2_score(y_test, y_pred, multioutput="raw_values")
-mae = mean_absolute_error(y_test, y_pred, multioutput="raw_values")
+# ── Evaluation (convert back to original scale for reporting) ─────────────────
+y_pred_log = model.predict(X_test)
+y_pred_orig = y_pred_log.copy()
+y_pred_orig[:, 1] = np.exp(y_pred_log[:, 1])
+
+y_test_orig = y_test.copy()
+y_test_orig[:, 1] = np.exp(y_test[:, 1])
+
+r2  = r2_score(y_test_orig, y_pred_orig, multioutput="raw_values")
+mae = mean_absolute_error(y_test_orig, y_pred_orig, multioutput="raw_values")
 
 print(f"Train samples    : {len(X_train)}   Test samples : {len(X_test)}")
 print(f"R²   — cost: {r2[0]:.4f}   deflection: {r2[1]:.4f}")
 print(f"MAE  — cost: {mae[0]:.4f}   deflection: {mae[1]:.6f}")
 
-# ── Serialise ─────────────────────────────────────────────────────────────────
+# ── Serialise model ───────────────────────────────────────────────────────────
 os.makedirs("models", exist_ok=True)
 joblib.dump(model, "models/model.pkl")
 print("Model saved to models/model.pkl")
+
+# ── Save training metadata ────────────────────────────────────────────────────
+metadata = {
+    "trained_at":               str(date.today()),
+    "n_raw":                    N_raw,
+    "n_feasible":               int(mask.sum()),
+    "n_train":                  len(X_train),
+    "n_test":                   len(X_test),
+    "log_transform_deflection": True,
+    "noise_pct":                0.02,
+    "r2_cost":                  float(r2[0]),
+    "r2_deflection":            float(r2[1]),
+    "mae_cost":                 float(mae[0]),
+    "mae_deflection":           float(mae[1]),
+    "features":                 ["h", "l", "t", "b"],
+    "targets":                  ["cost", "log_deflection"],
+}
+with open("models/model_info.json", "w") as f:
+    json.dump(metadata, f, indent=2)
+print("Metadata saved to models/model_info.json")

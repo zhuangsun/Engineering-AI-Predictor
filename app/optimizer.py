@@ -5,10 +5,58 @@ Provides two optimisation strategies over the RF surrogate model:
   - Random-sampling Pareto filter  (fast, O(n) model evals)
   - NSGA-II evolutionary algorithm (thorough, iterative)
 
-Both minimise weight and maximise strength (min –strength internally).
+Both minimise cost ($) and deflection (in) for the Welded Beam benchmark.
 """
 import numpy as np
 from app.services import model
+
+# ── Welded Beam physics (used for feasibility enforcement) ─────────────────────
+_P = 6_000   # applied load  [lbf]
+_L = 14.0    # beam length   [in]
+
+
+def _shear_stress(h, l, t, b):
+    tau1 = _P / (np.sqrt(2) * h * l)
+    M    = _P * (_L + l / 2)
+    R    = np.sqrt(l**2 / 4 + ((h + t) / 2)**2)
+    J    = 2 * np.sqrt(2) * h * l * (l**2 / 12 + ((h + t) / 2)**2)
+    tau2 = M * R / J
+    return np.sqrt(tau1**2 + 2 * tau1 * tau2 * (l / (2 * R)) + tau2**2)
+
+
+def _bending_stress(h, l, t, b):
+    return 504_000 / (t**2 * b)
+
+
+def _deflection_physics(h, l, t, b):
+    return 2.1952 / (t**3 * b)
+
+
+def check_feasibility(h: float, l: float, t: float, b: float) -> dict:
+    """Return constraint values and pass/fail status for a single design."""
+    tau   = float(_shear_stress(h, l, t, b))
+    sigma = float(_bending_stress(h, l, t, b))
+    delta = float(_deflection_physics(h, l, t, b))
+    return {
+        "feasible": tau <= 13_600 and sigma <= 30_000 and delta <= 0.25 and h <= b,
+        "constraints": {
+            "shear_stress":   {"value": tau,   "limit": 13_600, "ok": tau   <= 13_600},
+            "bending_stress": {"value": sigma, "limit": 30_000, "ok": sigma <= 30_000},
+            "deflection":     {"value": delta, "limit": 0.25,   "ok": delta <= 0.25},
+            "h_le_b":         {"value": h,     "limit": b,      "ok": h     <= b},
+        },
+    }
+
+
+def _feasible_batch(X: np.ndarray) -> np.ndarray:
+    """Vectorised feasibility check for a batch of designs (n, 4)."""
+    h, l, t, b = X[:, 0], X[:, 1], X[:, 2], X[:, 3]
+    return (
+        (_shear_stress(h, l, t, b)   <= 13_600) &
+        (_bending_stress(h, l, t, b) <= 30_000) &
+        (_deflection_physics(h, l, t, b) <= 0.25) &
+        (h <= b)
+    )
 
 # ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -141,7 +189,7 @@ def run_optimization() -> dict:
     """Simple single-objective extrema finder (kept for backward compat)."""
     samples = np.random.uniform(low=[0.1, 0.1, 0.1, 0.1], high=[2.0, 10.0, 10.0, 2.0], size=(500, 4))
     preds = model.predict(samples)
-    costs, deflections = preds[:, 0], preds[:, 1]
+    costs, deflections = preds[:, 0], np.exp(preds[:, 1])
     bc, bd = int(np.argmin(costs)), int(np.argmin(deflections))
     return {
         "min_cost_design": {
@@ -163,7 +211,11 @@ def run_pareto_optimization(bounds: dict, n_samples: int = 2000) -> dict:
     high = [bounds["h_max"], bounds["l_max"], bounds["t_max"], bounds["b_max"]]
     samples = np.random.uniform(low=low, high=high, size=(n_samples, 4))
     preds = model.predict(samples)
-    costs_arr, deflections = preds[:, 0], preds[:, 1]
+    costs_arr  = preds[:, 0]
+    deflections = np.exp(preds[:, 1])       # invert log-transform from training
+    # Remove infeasible samples before Pareto filtering
+    feas = _feasible_batch(samples)
+    samples, costs_arr, deflections = samples[feas], costs_arr[feas], deflections[feas]
     obj = np.column_stack([costs_arr, deflections])  # both minimised
     mask = _pareto_mask(obj)
     order = np.argsort(costs_arr[mask])
@@ -200,7 +252,13 @@ def run_ga_optimization(bounds: dict, pop_size: int = 100, n_generations: int = 
 
     def _eval(X: np.ndarray) -> np.ndarray:
         preds = model.predict(X)
-        return np.column_stack([preds[:, 0], preds[:, 1]])  # [cost, deflection] both minimised
+        cost  = preds[:, 0]
+        defl  = np.exp(preds[:, 1])          # invert log-transform from training
+        obj   = np.column_stack([cost, defl])
+        # Penalise infeasible designs so they stay off the Pareto front
+        infeasible = ~_feasible_batch(X)
+        obj[infeasible] = 1e9
+        return obj
 
     # Initialise
     pop = np.column_stack([
